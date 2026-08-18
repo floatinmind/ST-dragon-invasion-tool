@@ -419,16 +419,27 @@
       }
       const header = `<div class="item-header"><span class="item-name">${esc(name)}</span><span class="item-meta">Tier ${info.tier ?? '–'} · ${esc(info.type ?? '')}</span></div><div class="stat-row">${statPills(info)}</div>${renderAP(name)}`;
       const key = `${info.type}|${info.tier}`;
-      const candidates = (POOL[key] || []).filter(n => n !== name);
+      let candidates = (POOL[key] || []).filter(n => n !== name);
+      let usedFallback = false;
+      if(candidates.length === 0 && info.tier != null){
+        const lowerKey = `${info.type}|${info.tier - 1}`;
+        const upperKey = `${info.type}|${info.tier + 1}`;
+        candidates = [...(POOL[lowerKey]||[]), ...(POOL[upperKey]||[])].filter(n => n !== name);
+        usedFallback = candidates.length > 0;
+      }
       let compareHtml = '';
       if(candidates.length){
-        compareHtml = `<div class="section-label">同類型 · 同 Tier 的推薦裝備</div>` + candidates.map(cname => {
+        const labelText = usedFallback
+          ? `找不到同 Tier 的推薦裝備，改列相鄰 Tier（T${info.tier-1}/T${info.tier+1}）同類型的推薦裝備`
+          : `同類型 · 同 Tier 的推薦裝備`;
+        compareHtml = `<div class="section-label">${labelText}</div>` + candidates.map(cname => {
           const cinfo = BP[cname];
           const levelUses = LOADOUT[cname] || [];
           const finalUses = (FINAL_BIS[cname] || []).filter(e => e.kind === 'primary');
           const levelStr = levelUses.slice(0,3).map(u => `${esc(u.class)} T${u.tier}`).join(', ') + (levelUses.length > 3 ? ` +${levelUses.length-3}` : '');
           const finalStr = finalUses.slice(0,3).map(e => `${esc(e.class)}${e.skill ? ' ('+esc(e.skill)+')' : ''}`).join(', ') + (finalUses.length > 3 ? ` +${finalUses.length-3}` : '');
           const badges = (finalUses.length ? '<span class="bis-tag">Final BIS</span>' : '') + (levelUses.length ? '<span class="bis-tag" style="background:rgba(110,222,93,0.14);color:var(--good);border-color:rgba(110,222,93,0.4)">練等BIS</span>' : '');
+          const tierNote = usedFallback ? `<span class="meta-tag">T${cinfo.tier ?? '–'}</span> ` : '';
           const statsStr = [
             cinfo.atk!=null?`ATK ${cinfo.atk}`:null,
             cinfo.def!=null?`DEF ${cinfo.def}`:null,
@@ -441,10 +452,10 @@
             finalUses.length ? `Final BIS：<b>${finalStr}</b>` : null,
             levelUses.length ? `練等BIS：<b>${levelStr}</b>` : null,
           ].filter(Boolean).join('<br>');
-          return `<div class="card"><div class="card-top"><span class="card-name">${esc(cname)}${badges}</span><span class="card-stats">${statsStr}</span></div><div class="card-meta">${metaLines || '—'}</div></div>`;
+          return `<div class="card"><div class="card-top"><span class="card-name">${tierNote}${esc(cname)}${badges}</span><span class="card-stats">${statsStr}</span></div><div class="card-meta">${metaLines || '—'}</div></div>`;
         }).join('');
       } else {
-        compareHtml = `<div class="no-match">找不到同類型、同 Tier 的推薦裝備可供比較。</div>`;
+        compareHtml = `<div class="no-match">找不到同類型的推薦裝備可供比較（含相鄰 Tier 也查無資料）。</div>`;
       }
       return verdictHtml + header + compareHtml;
     }
