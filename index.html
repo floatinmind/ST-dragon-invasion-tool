@@ -236,7 +236,8 @@
   <!-- TAB 3: Dragon Invasion tally -->
   <div class="panel" id="panel-tally">
     <main class="tab-main" style="padding-top:16px;">
-      <p class="sub">四個分類各自列出 Airship Power 前 50 名裝備，同一件裝備可分別填入不同品質的持有數量（不需要的留 0）。湊滿 50 件即達標。重新整理頁面會清空紀錄。</p>
+      <p class="sub">四個分類各自列出 Airship Power 前 50 名裝備，同一件裝備可分別填入不同品質的持有數量（不需要的留 0）。湊滿 50 件即達標。紀錄會自動保存在這台裝置上，下次打開不會消失。</p>
+      <button id="tally-clear-btn" style="margin-top:10px; background:var(--bg-card); border:1px solid var(--line); color:var(--text-dim); font-family:'IBM Plex Mono',monospace; font-size:12px; padding:8px 14px; border-radius:4px; cursor:pointer;">清空所有紀錄</button>
       <div id="tally-main" style="margin-top:16px;"></div>
     </main>
   </div>
@@ -458,6 +459,18 @@
     const CATS = ['Weapons', 'Body Armor', 'Misc. Armor', 'Accessory'];
     const QUALITIES = ['Normal','Superior','Flawless','Epic','Legendary'];
     const main = document.getElementById('tally-main');
+    const STORAGE_KEY = 'shopTitansDragonInvasionTally';
+
+    function loadStore(){
+      try{
+        const raw = localStorage.getItem(STORAGE_KEY);
+        return raw ? JSON.parse(raw) : {};
+      }catch(e){ return {}; }
+    }
+    function saveStore(store){
+      try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(store)); }catch(e){}
+    }
+    let store = loadStore();
 
     CATS.forEach((cat, catIdx) => {
       const items = TOP50[cat] || [];
@@ -488,7 +501,10 @@
       items.forEach((it, i) => {
         const row = document.createElement('div');
         row.className = 'item-row';
-        const qtyInputs = QUALITIES.map(q => `<input type="number" class="qty-input q-${q}" id="tqty-${catIdx}-${i}-${q}" value="0" min="0">`).join('');
+        const qtyInputs = QUALITIES.map(q => {
+          const savedVal = store[`${catIdx}-${i}-${q}`] || 0;
+          return `<input type="number" class="qty-input q-${q}" id="tqty-${catIdx}-${i}-${q}" value="${savedVal}" min="0">`;
+        }).join('');
         const typeTag = it.type ? `<span class="type-tag">${esc(it.type)}</span>` : '';
         const bisBadge = it.bis ? `<span class="bis-badge">BIS</span>` : '';
         row.innerHTML = `
@@ -500,9 +516,14 @@
           ${qtyInputs}
         `;
         body.appendChild(row);
+        const rowTotal = QUALITIES.reduce((sum, q) => sum + (store[`${catIdx}-${i}-${q}`] || 0), 0);
+        row.classList.toggle('active', rowTotal > 0);
         QUALITIES.forEach(q => {
           const inp = row.querySelector(`#tqty-${catIdx}-${i}-${q}`);
           inp.addEventListener('input', () => {
+            const val = parseInt(inp.value) || 0;
+            store[`${catIdx}-${i}-${q}`] = val;
+            saveStore(store);
             const total = QUALITIES.reduce((sum, qq) => sum + (parseInt(row.querySelector(`#tqty-${catIdx}-${i}-${qq}`).value) || 0), 0);
             row.classList.toggle('active', total > 0);
             updateCount(catIdx, items.length);
@@ -516,6 +537,7 @@
         document.getElementById(`tchev-${catIdx}`).classList.toggle('open');
       });
       main.appendChild(section);
+      updateCount(catIdx, items.length);
     });
 
     function updateCount(catIdx, total){
@@ -530,6 +552,15 @@
       barEl.style.width = pct + '%';
       barEl.classList.toggle('done', sum >= total);
     }
+
+    document.getElementById('tally-clear-btn').addEventListener('click', () => {
+      if(!confirm('確定要清空所有貨艙清點紀錄嗎？此動作無法復原。')) return;
+      store = {};
+      saveStore(store);
+      document.querySelectorAll('#tally-main .qty-input').forEach(inp => { inp.value = 0; });
+      document.querySelectorAll('#tally-main .item-row').forEach(row => row.classList.remove('active'));
+      CATS.forEach((cat, catIdx) => updateCount(catIdx, (TOP50[cat]||[]).length));
+    });
   })();
 })();
 </script>
