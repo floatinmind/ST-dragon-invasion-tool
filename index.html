@@ -553,7 +553,7 @@
             saveStore(store);
             const total = QUALITIES.reduce((sum, qq) => sum + (parseInt(row.querySelector(`#tqty-${catIdx}-${i}-${qq}`).value) || 0), 0);
             row.classList.toggle('active', total > 0);
-            updateCount(catIdx, items.length);
+            updateCount(catIdx, 50);
           });
         });
       });
@@ -564,7 +564,7 @@
         document.getElementById(`tchev-${catIdx}`).classList.toggle('open');
       });
       main.appendChild(section);
-      updateCount(catIdx, items.length);
+      updateCount(catIdx, 50);
     });
 
     function updateCount(catIdx, total){
@@ -586,7 +586,7 @@
       saveStore(store);
       document.querySelectorAll('#tally-main .qty-input').forEach(inp => { inp.value = 0; });
       document.querySelectorAll('#tally-main .item-row').forEach(row => row.classList.remove('active'));
-      CATS.forEach((cat, catIdx) => updateCount(catIdx, (TOP75[cat]||[]).length));
+      CATS.forEach((cat, catIdx) => updateCount(catIdx, 50));
     });
   })();
 })();
