@@ -519,14 +519,16 @@
     });
 
     function updateCount(catIdx, total){
-      const activeRows = document.querySelectorAll(`#tally-main .cat-section:nth-child(${catIdx+1}) .item-row.active`).length;
+      const qtyInputs = document.querySelectorAll(`#tally-main .cat-section:nth-child(${catIdx+1}) .qty-input`);
+      let sum = 0;
+      qtyInputs.forEach(inp => { sum += parseInt(inp.value) || 0; });
       const countEl = document.getElementById(`tcount-${catIdx}`);
       const barEl = document.getElementById(`tbar-${catIdx}`);
-      countEl.innerHTML = `<b>${activeRows}</b> / ${total}`;
-      countEl.classList.toggle('done', activeRows >= total);
-      const pct = Math.min(100, (activeRows/total)*100);
+      countEl.innerHTML = `<b>${sum}</b> / ${total}`;
+      countEl.classList.toggle('done', sum >= total);
+      const pct = Math.min(100, (sum/total)*100);
       barEl.style.width = pct + '%';
-      barEl.classList.toggle('done', activeRows >= total);
+      barEl.classList.toggle('done', sum >= total);
     }
   })();
 })();
