@@ -500,6 +500,11 @@
       body.className = 'cat-body';
       if(catIdx === 0) body.classList.add('open');
 
+      const PAGE_SIZE = 50;
+      const pageCount = Math.ceil(items.length / PAGE_SIZE);
+      let currentPage = 0;
+      let currentFilter = '__all__';
+
       // Type filter buttons
       const types = Array.from(new Set(items.map(it => it.type).filter(Boolean))).sort();
       const filterRow = document.createElement('div');
@@ -512,10 +517,8 @@
         if(!btn) return;
         filterRow.querySelectorAll('.type-filter-btn').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
-        const filterType = btn.dataset.type;
-        body.querySelectorAll('.item-row').forEach(row => {
-          row.style.display = (filterType === '__all__' || row.dataset.type === filterType) ? '' : 'none';
-        });
+        currentFilter = btn.dataset.type;
+        applyVisibility();
       });
 
       const colLabels = document.createElement('div');
@@ -527,6 +530,7 @@
         const row = document.createElement('div');
         row.className = 'item-row';
         row.dataset.type = it.type || '';
+        row.dataset.idx = i;
         const qtyInputs = QUALITIES.map(q => {
           const savedVal = store[`${catIdx}-${i}-${q}`] || 0;
           return `<input type="number" class="qty-input q-${q}" id="tqty-${catIdx}-${i}-${q}" value="${savedVal}" min="0">`;
@@ -557,6 +561,40 @@
           });
         });
       });
+
+      function applyVisibility(){
+        const lo = currentPage * PAGE_SIZE;
+        const hi = lo + PAGE_SIZE - 1;
+        body.querySelectorAll('.item-row').forEach(row => {
+          const idx = parseInt(row.dataset.idx);
+          const inPage = idx >= lo && idx <= hi;
+          const inFilter = (currentFilter === '__all__' || row.dataset.type === currentFilter);
+          row.style.display = (inPage && inFilter) ? '' : 'none';
+        });
+      }
+
+      let pageNav = null;
+      if(pageCount > 1){
+        pageNav = document.createElement('div');
+        pageNav.style.cssText = 'display:flex; gap:6px; justify-content:center; padding:10px 12px; border-top:1px dashed var(--line-soft);';
+        for(let p = 0; p < pageCount; p++){
+          const lo = p*PAGE_SIZE + 1;
+          const hi = Math.min(items.length, (p+1)*PAGE_SIZE);
+          const pbtn = document.createElement('button');
+          pbtn.className = 'type-filter-btn' + (p === 0 ? ' active' : '');
+          pbtn.textContent = `#${lo}–${hi}`;
+          pbtn.addEventListener('click', () => {
+            currentPage = p;
+            pageNav.querySelectorAll('button').forEach(b => b.classList.remove('active'));
+            pbtn.classList.add('active');
+            applyVisibility();
+          });
+          pageNav.appendChild(pbtn);
+        }
+        body.appendChild(pageNav);
+      }
+
+      applyVisibility();
 
       section.appendChild(body);
       head.addEventListener('click', () => {
