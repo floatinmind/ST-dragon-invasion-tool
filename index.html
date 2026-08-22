@@ -152,7 +152,10 @@
 
   /* Tally specific */
   .cat-section{ border: 1px solid var(--line-soft); border-radius: 4px; margin-bottom: 12px; overflow: hidden; background: var(--bg-card); }
-  .cat-head{ display:flex; justify-content:space-between; align-items:center; padding: 13px 16px; cursor: pointer; user-select: none; background: var(--bg-raised); }
+  .cat-head{ display:flex; justify-content:space-between; align-items:center; padding: 13px 16px; cursor: pointer; user-select: none; background: var(--bg-raised); transition: background 0.2s; }
+  .cat-head.done{ background: rgba(110,222,93,0.16); }
+  .item-row.threshold{ background: rgba(110,222,93,0.14); box-shadow: inset 3px 0 0 var(--good); }
+  .threshold-tag{ font-family:'IBM Plex Mono',monospace; font-size:9px; letter-spacing:0.04em; text-transform:uppercase; color: var(--good); background: rgba(110,222,93,0.16); border:1px solid rgba(110,222,93,0.4); border-radius:3px; padding:1px 5px; }
   .cat-name{ font-family:'Oswald',sans-serif; font-size:15px; font-weight:600; color: var(--text); }
   .cat-progress{ display:flex; align-items:center; gap:10px; }
   .cat-count{ font-family:'IBM Plex Mono',monospace; font-size:12.5px; color: var(--text-dim); }
@@ -575,6 +578,7 @@
       try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(store)); }catch(e){}
     }
     let store = loadStore();
+    const categoryUpdaters = [];
 
     CATS.forEach((cat, catIdx) => {
       const items = TOP75[cat] || [];
@@ -626,6 +630,7 @@
         currentPage = 0;
         if(pageNav){ pageNav.querySelectorAll('button').forEach((b,p) => b.classList.toggle('active', p===0)); }
         applyVisibility();
+        updateThreshold();
       });
 
       // Type filter buttons
@@ -691,9 +696,34 @@
             const total = QUALITIES.reduce((sum, qq) => sum + (parseInt(row.querySelector(`#tqty-${catIdx}-${i}-${qq}`).value) || 0), 0);
             row.classList.toggle('active', total > 0);
             updateCount(catIdx, 50);
+            updateThreshold();
           });
         });
       });
+
+      function updateThreshold(){
+        let cumulative = 0;
+        let thresholdIdx = null;
+        for(const idx of orderArr){
+          if(thresholdIdx !== null) break;
+          const rowTotal = QUALITIES.reduce((s,q) => s + (store[`${catIdx}-${idx}-${q}`] || 0), 0);
+          if(rowTotal <= 0) continue;
+          cumulative += rowTotal;
+          if(cumulative >= 50) thresholdIdx = idx;
+        }
+        rowsContainer.querySelectorAll('.item-row').forEach(row => {
+          const isThreshold = parseInt(row.dataset.idx) === thresholdIdx;
+          row.classList.toggle('threshold', isThreshold);
+          const tagSlot = row.querySelector('.item-tags');
+          const existingTag = tagSlot ? tagSlot.querySelector('.threshold-tag') : null;
+          if(isThreshold && tagSlot && !existingTag){
+            tagSlot.insertAdjacentHTML('beforeend', `<span class="threshold-tag">湊滿50於此</span>`);
+          } else if(!isThreshold && existingTag){
+            existingTag.remove();
+          }
+        });
+      }
+      categoryUpdaters.push(updateThreshold);
 
       function applyVisibility(){
         const posMap = {};
@@ -732,6 +762,7 @@
       }
 
       applyVisibility();
+      updateThreshold();
 
       section.appendChild(body);
       head.addEventListener('click', () => {
@@ -748,11 +779,13 @@
       qtyInputs.forEach(inp => { sum += parseInt(inp.value) || 0; });
       const countEl = document.getElementById(`tcount-${catIdx}`);
       const barEl = document.getElementById(`tbar-${catIdx}`);
+      const headEl = document.querySelector(`#tally-main .cat-section:nth-child(${catIdx+1}) .cat-head`);
       countEl.innerHTML = `<b>${sum}</b> / ${total}`;
       countEl.classList.toggle('done', sum >= total);
       const pct = Math.min(100, (sum/total)*100);
       barEl.style.width = pct + '%';
       barEl.classList.toggle('done', sum >= total);
+      if(headEl) headEl.classList.toggle('done', sum >= total);
     }
 
     document.getElementById('tally-clear-btn').addEventListener('click', () => {
@@ -760,8 +793,10 @@
       store = {};
       saveStore(store);
       document.querySelectorAll('#tally-main .qty-input').forEach(inp => { inp.value = 0; });
-      document.querySelectorAll('#tally-main .item-row').forEach(row => row.classList.remove('active'));
+      document.querySelectorAll('#tally-main .item-row').forEach(row => row.classList.remove('active', 'threshold'));
+      document.querySelectorAll('#tally-main .threshold-tag').forEach(tag => tag.remove());
       CATS.forEach((cat, catIdx) => updateCount(catIdx, 50));
+      categoryUpdaters.forEach(fn => fn());
     });
   })();
 })();
