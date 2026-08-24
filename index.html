@@ -155,6 +155,8 @@
   .cat-head{ display:flex; justify-content:space-between; align-items:center; padding: 13px 16px; cursor: pointer; user-select: none; background: var(--bg-raised); transition: background 0.2s; }
   .cat-head.done{ background: rgba(110,222,93,0.16); }
   .item-row.threshold{ background: rgba(110,222,93,0.14); box-shadow: inset 3px 0 0 var(--good); }
+  .item-row.bis-excluded{ opacity: 0.45; }
+  .excluded-tag{ font-family:'IBM Plex Mono',monospace; font-size:9px; letter-spacing:0.04em; color: var(--text-faint); background: var(--bg-raised); border:1px solid var(--line-soft); border-radius:3px; padding:1px 5px; }
   .threshold-tag{ font-family:'IBM Plex Mono',monospace; font-size:9px; letter-spacing:0.04em; text-transform:uppercase; color: var(--good); background: rgba(110,222,93,0.16); border:1px solid rgba(110,222,93,0.4); border-radius:3px; padding:1px 5px; }
   .cat-name{ font-family:'Oswald',sans-serif; font-size:15px; font-weight:600; color: var(--text); }
   .cat-progress{ display:flex; align-items:center; gap:10px; }
@@ -261,6 +263,10 @@
         <button id="tally-export-btn" style="background:var(--bg-card); border:1px solid var(--brass); color:var(--brass); font-family:'IBM Plex Mono',monospace; font-size:12px; padding:8px 14px; border-radius:4px; cursor:pointer;">匯出備份</button>
         <button id="tally-import-btn" style="background:var(--bg-card); border:1px solid var(--brass); color:var(--brass); font-family:'IBM Plex Mono',monospace; font-size:12px; padding:8px 14px; border-radius:4px; cursor:pointer;">匯入備份</button>
       </div>
+      <label style="display:flex; align-items:center; gap:8px; margin-top:12px; font-family:'IBM Plex Mono',monospace; font-size:12px; color:var(--text-dim); cursor:pointer;">
+        <input type="checkbox" id="exclude-bis-toggle" style="width:16px;height:16px;accent-color:var(--ember);cursor:pointer;">
+        不計算 BIS 裝備（Final BIS / 練等BIS，可能之後要留給英雄用）
+      </label>
       <div id="tally-io-panel" style="display:none; margin-top:12px; background:var(--bg-card); border:1px solid var(--line-soft); border-radius:4px; padding:12px;">
         <div id="tally-io-label" style="font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--text-faint); margin-bottom:6px;"></div>
         <textarea id="tally-io-text" style="width:100%; min-height:90px; background:var(--bg-raised); border:1px solid var(--line); border-radius:3px; color:var(--text); font-family:'IBM Plex Mono',monospace; font-size:11px; padding:8px; resize:vertical;"></textarea>
@@ -592,6 +598,10 @@
     let store = loadStore();
     const categoryUpdaters = [];
 
+    const EXCLUDE_BIS_KEY = 'shopTitansDragonInvasionExcludeBis';
+    const excludeBisToggle = document.getElementById('exclude-bis-toggle');
+    try{ excludeBisToggle.checked = localStorage.getItem(EXCLUDE_BIS_KEY) === '1'; }catch(e){}
+
     CATS.forEach((cat, catIdx) => {
       const items = TOP75[cat] || [];
       const section = document.createElement('div');
@@ -675,6 +685,7 @@
         row.className = 'item-row';
         row.dataset.type = it.type || '';
         row.dataset.idx = i;
+        row.dataset.bis = (it.finalBis || it.levelBis) ? '1' : '0';
         const qtyInputs = QUALITIES.map(q => {
           const savedVal = store[`${catIdx}-${i}-${q}`] || 0;
           return `<input type="number" class="qty-input q-${q}" id="tqty-${catIdx}-${i}-${q}" value="${savedVal}" min="0">`;
@@ -714,10 +725,12 @@
       });
 
       function updateThreshold(){
+        const excludeBis = isExcludingBis();
         let cumulative = 0;
         let thresholdIdx = null;
         for(const idx of orderArr){
           if(thresholdIdx !== null) break;
+          if(excludeBis && (items[idx].finalBis || items[idx].levelBis)) continue;
           const rowTotal = QUALITIES.reduce((s,q) => s + (store[`${catIdx}-${idx}-${q}`] || 0), 0);
           if(rowTotal <= 0) continue;
           cumulative += rowTotal;
@@ -726,12 +739,19 @@
         rowsContainer.querySelectorAll('.item-row').forEach(row => {
           const isThreshold = parseInt(row.dataset.idx) === thresholdIdx;
           row.classList.toggle('threshold', isThreshold);
+          row.classList.toggle('bis-excluded', excludeBis && row.dataset.bis === '1');
           const tagSlot = row.querySelector('.item-tags');
           const existingTag = tagSlot ? tagSlot.querySelector('.threshold-tag') : null;
           if(isThreshold && tagSlot && !existingTag){
             tagSlot.insertAdjacentHTML('beforeend', `<span class="threshold-tag">湊滿50於此</span>`);
           } else if(!isThreshold && existingTag){
             existingTag.remove();
+          }
+          const existingExcludedTag = tagSlot ? tagSlot.querySelector('.excluded-tag') : null;
+          if(excludeBis && row.dataset.bis === '1' && tagSlot && !existingExcludedTag){
+            tagSlot.insertAdjacentHTML('beforeend', `<span class="excluded-tag">不計入</span>`);
+          } else if((!excludeBis || row.dataset.bis !== '1') && existingExcludedTag){
+            existingExcludedTag.remove();
           }
         });
       }
@@ -785,10 +805,19 @@
       updateCount(catIdx, 50);
     });
 
+    function isExcludingBis(){
+      const el = document.getElementById('exclude-bis-toggle');
+      return el ? el.checked : false;
+    }
+
     function updateCount(catIdx, total){
-      const qtyInputs = document.querySelectorAll(`#tally-main .cat-section:nth-child(${catIdx+1}) .qty-input`);
+      const excludeBis = isExcludingBis();
+      const rows = document.querySelectorAll(`#tally-main .cat-section:nth-child(${catIdx+1}) .item-row`);
       let sum = 0;
-      qtyInputs.forEach(inp => { sum += parseInt(inp.value) || 0; });
+      rows.forEach(row => {
+        if(excludeBis && row.dataset.bis === '1') return;
+        row.querySelectorAll('.qty-input').forEach(inp => { sum += parseInt(inp.value) || 0; });
+      });
       const countEl = document.getElementById(`tcount-${catIdx}`);
       const barEl = document.getElementById(`tbar-${catIdx}`);
       const headEl = document.querySelector(`#tally-main .cat-section:nth-child(${catIdx+1}) .cat-head`);
@@ -799,6 +828,12 @@
       barEl.classList.toggle('done', sum >= total);
       if(headEl) headEl.classList.toggle('done', sum >= total);
     }
+
+    excludeBisToggle.addEventListener('change', () => {
+      try{ localStorage.setItem(EXCLUDE_BIS_KEY, excludeBisToggle.checked ? '1' : '0'); }catch(e){}
+      CATS.forEach((cat, catIdx) => updateCount(catIdx, 50));
+      categoryUpdaters.forEach(fn => fn());
+    });
 
     document.getElementById('tally-clear-btn').addEventListener('click', () => {
       if(!confirm('確定要清空所有貨艙清點紀錄嗎？此動作無法復原。')) return;
