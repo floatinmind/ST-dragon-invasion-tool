@@ -1015,7 +1015,7 @@
       const deltaAtk = dElem.atk + dSpirit.atk;
       const deltaDef = dElem.def + dSpirit.def;
       const deltaHp = dElem.hp + dSpirit.hp;
-      const enchantAP = deltaAtk*0.8 + deltaDef*1.2 + deltaHp*5;
+      const enchantAP = (deltaAtk*0.8 + deltaDef*1.2 + deltaHp*5) * (1 + eva*10) * (1 + crit*10);
       const totalAP = qualityAP + enchantAP;
 
       return { info, baseAtk, baseDef, baseHp, ms, eva, crit, baseAP, qObj, qualityAP,
@@ -1042,7 +1042,7 @@
       if(locked){
         return `<div class="stat-pill" style="width:100%;box-sizing:border-box;">已內建：<b>${esc(lockedName)}</b>（此裝備的 Spirit 欄位已固定，無法再改附魔）</div>`;
       }
-      const sorted = (ENCH.spirits||[]).slice().sort((a,b)=>a.name.localeCompare(b.name));
+      const sorted = (ENCH.spirits||[]).slice().sort((a,b)=>(a.tier - b.tier) || a.name.localeCompare(b.name));
       let html = `<select id="ap-spirit-select" style="width:100%;background:var(--bg-raised);border:1px solid var(--line-soft);color:var(--text);font-family:'IBM Plex Mono',monospace;font-size:12.5px;padding:8px;border-radius:4px;"><option value="">（不附魔 Spirit）</option>`;
       sorted.forEach(s => {
         html += `<option value="${esc(s.name)}" ${s.name===selected?'selected':''}>${esc(s.name)} (T${s.tier})</option>`;
